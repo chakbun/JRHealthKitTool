@@ -11,6 +11,7 @@
 typedef NS_ENUM(NSInteger, JRWeight_Unit) {
     JRWeight_Unit_kg = 0,
     JRWeight_Unit_pount,
+    JRWeight_Unit_st,
 };
 
 typedef NS_ENUM(NSInteger, JRPressure_Unit) {

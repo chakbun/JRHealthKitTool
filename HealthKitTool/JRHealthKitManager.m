@@ -58,7 +58,24 @@
 
 - (HKQuantitySample *)createWeightSample:(double)weight unit:(JRWeight_Unit)unit date:(NSDate *)date {
     
-    HKUnit *weightUnit = (unit == JRWeight_Unit_kg)? [HKUnit gramUnitWithMetricPrefix:HKMetricPrefixKilo]:[HKUnit poundUnit];
+    HKUnit *weightUnit;
+    
+    switch (unit) {
+        case JRWeight_Unit_kg:
+            weightUnit = [HKUnit gramUnitWithMetricPrefix:HKMetricPrefixKilo];
+            break;
+        case JRWeight_Unit_pount:
+            weightUnit = [HKUnit poundUnit];
+            break;
+        case JRWeight_Unit_st:
+            weightUnit = [HKUnit stoneUnit];
+            break;
+        default:
+            weightUnit = [HKUnit gramUnitWithMetricPrefix:HKMetricPrefixKilo];
+            break;
+    }
+
+    
     HKQuantity *weightQuantity = [HKQuantity quantityWithUnit:weightUnit doubleValue:weight];
     HKQuantityType *weightType = [HKQuantityType quantityTypeForIdentifier:HKQuantityTypeIdentifierBodyMass];
     HKQuantitySample *weightSample = [HKQuantitySample quantitySampleWithType:weightType quantity:weightQuantity startDate:date endDate:date];
@@ -112,7 +129,24 @@
 
 - (HKQuantitySample *)createActivityDistanceSample:(double)value date:(NSDate *)date unit:(JRLength_Unit)distanceUnit{
     
-    HKUnit *unit = (distanceUnit == JRLength_Unit_km)?[HKUnit meterUnitWithMetricPrefix:HKMetricPrefixKilo]:[HKUnit footUnit];
+    HKUnit *unit;
+    
+    switch (distanceUnit) {
+        case JRLength_Unit_km:
+            unit = [HKUnit meterUnitWithMetricPrefix:HKMetricPrefixKilo];
+            break;
+        case JRLength_Unit_m:
+            unit = [HKUnit meterUnit];
+            break;
+        case JRLength_Unit_ft:
+            unit = [HKUnit footUnit];
+            break;
+        default:
+            unit = [HKUnit meterUnit];
+            break;
+    }
+
+    
     HKQuantity *distanceQuantity = [HKQuantity quantityWithUnit:unit doubleValue:value];
     HKQuantityType *distanceType = [HKQuantityType quantityTypeForIdentifier:HKQuantityTypeIdentifierDistanceWalkingRunning];
     HKQuantitySample *distanceSample = [HKQuantitySample quantitySampleWithType:distanceType quantity:distanceQuantity startDate:date endDate:date];
