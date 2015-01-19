@@ -24,8 +24,15 @@ typedef NS_ENUM(NSInteger, JRPressure_Type) {
 };
 
 typedef NS_ENUM(NSInteger, JRLength_Unit) {
-    JRLength_Unit_m = 0,
+    JRLength_Unit_km = 0,
+    JRLength_Unit_m,
     JRLength_Unit_ft,
+};
+
+typedef NS_ENUM(NSInteger, JRAuthorize_Type) {
+    JRAuthorize_Type_Weight = 0,
+    JRAuthorize_Type_Pressure,
+    JRAuthorize_Type_Activity,
 };
 
 typedef void(^JRBooleanResultBlock)(BOOL success, NSError *error);
@@ -34,10 +41,13 @@ typedef void(^JRBooleanResultBlock)(BOOL success, NSError *error);
 
 + (instancetype)shareManager;
 
+- (BOOL)isHealthKitAvailable;
+
 /*======================================================
  Authorize
  /======================================================*/
 - (void)getReadAndWriteAuthorizeWithCompleted:(JRBooleanResultBlock)completed;
+- (void)getReadAndWriteAuthorize:(NSArray *)authorizeTypes withCompleted:(JRBooleanResultBlock)completed;
 
 /*======================================================
  height
@@ -56,6 +66,9 @@ typedef void(^JRBooleanResultBlock)(BOOL success, NSError *error);
 
 - (void)fetchWeightsFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed;
 - (void)fetchFatPercentsFromDate:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed;
+- (void)fetchBmisFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed;
+
+- (void)deleteLifesenseWeightFromDate:(NSDate *)beginDate toDate:(NSDate *)endDate;
 
 /*======================================================
  fat percent
@@ -72,8 +85,16 @@ typedef void(^JRBooleanResultBlock)(BOOL success, NSError *error);
 - (void)savePressure:(double)value date:(NSDate *)date unit:(JRPressure_Unit)pressureUnit type:(JRPressure_Type)type;
 - (void)savePressures:(NSArray *)array date:(NSDate *)date unit:(JRPressure_Unit)pressureUnit type:(JRPressure_Type)type;
 
+- (void)fetchDiaPressureFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed;
+- (void)fetchSysPressureFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed;
+- (void)fetchHeartRateFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed;
+
+- (void)deleteLifesensePressureFromDate:(NSDate *)beginDate toDate:(NSDate *)endDate;
+
+
 /*======================================================
  activity
  /======================================================*/
 - (void)saveLifesenseActivity:(NSDictionary *)activityDic;
+- (void)deletedLifesenseActivityFromDate:(NSDate *)beginDate toDate:(NSDate *)endDate;
 @end

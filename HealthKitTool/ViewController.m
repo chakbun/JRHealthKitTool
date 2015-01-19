@@ -82,8 +82,8 @@
      */
     NSDictionary *activityData = @{
                                    @"step":@160,
-                                   @"distance":@2000,
-                                   @"unit":@(JRLength_Unit_m),
+                                   @"distance":@2,
+                                   @"unit":@(JRLength_Unit_km),
                                    @"calorie":@180,
                                    @"date":[NSDate date],
                                    };

@@ -8,7 +8,8 @@
 
 #import "JRHealthKitManager.h"
 
-@import HealthKit;
+//@import HealthKit;
+#import <HealthKit/HealthKit.h>
 
 @interface JRHealthKitManager ()
 @property (nonatomic, strong) HKHealthStore *healthStore;
@@ -36,6 +37,11 @@
         }
     }
     return nil;
+}
+
+
+- (BOOL)isHealthKitAvailable {
+    return [HKHealthStore isHealthDataAvailable];
 }
 
 #pragma mark --Create Sample
@@ -106,7 +112,7 @@
 
 - (HKQuantitySample *)createActivityDistanceSample:(double)value date:(NSDate *)date unit:(JRLength_Unit)distanceUnit{
     
-    HKUnit *unit = (distanceUnit == JRLength_Unit_m)?[HKUnit meterUnit]:[HKUnit footUnit];
+    HKUnit *unit = (distanceUnit == JRLength_Unit_km)?[HKUnit meterUnitWithMetricPrefix:HKMetricPrefixKilo]:[HKUnit footUnit];
     HKQuantity *distanceQuantity = [HKQuantity quantityWithUnit:unit doubleValue:value];
     HKQuantityType *distanceType = [HKQuantityType quantityTypeForIdentifier:HKQuantityTypeIdentifierDistanceWalkingRunning];
     HKQuantitySample *distanceSample = [HKQuantitySample quantitySampleWithType:distanceType quantity:distanceQuantity startDate:date endDate:date];
@@ -125,7 +131,23 @@
 }
 
 - (HKQuantitySample *)createHeightSample:(double)value unit:(JRLength_Unit)heightUnit date:(NSDate *)date {
-    HKUnit *unit = (heightUnit ==JRLength_Unit_m) ? [HKUnit meterUnit]:[HKUnit footUnit];
+    HKUnit *unit;
+    
+    switch (heightUnit) {
+        case JRLength_Unit_km:
+            unit = [HKUnit meterUnitWithMetricPrefix:HKMetricPrefixKilo];
+            break;
+        case JRLength_Unit_m:
+            unit = [HKUnit meterUnit];
+            break;
+        case JRLength_Unit_ft:
+            unit = [HKUnit footUnit];
+            break;
+        default:
+            unit = [HKUnit meterUnit];
+            break;
+    }
+    
     HKQuantity *heightQuantity = [HKQuantity quantityWithUnit:unit doubleValue:value];
     HKQuantityType *heightQuantityType = [HKQuantityType quantityTypeForIdentifier:HKQuantityTypeIdentifierHeight];
     HKQuantitySample *heightSample = [HKQuantitySample quantitySampleWithType:heightQuantityType quantity:heightQuantity startDate:date endDate:date];
@@ -219,17 +241,7 @@
 - (void)fetchWeightsFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed {
     
     HKQuantityType *weightType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBodyMass];
-    
-    NSPredicate *weightPredicated = [self predicateFromDate:beginDate toDate:endDate];
-    NSSortDescriptor *descriptor = [NSSortDescriptor sortDescriptorWithKey:HKSampleSortIdentifierStartDate ascending:YES];
-    
-    [self fetchSamples:weightType predicate:weightPredicated limited:HKObjectQueryNoLimit sortedDescriptors:@[descriptor] completion:^(NSArray *samples, NSError *error) {
-        if (error) {
-            completed(nil,error);
-        }else {
-            completed(samples,nil);
-        }
-    }];
+    [self fetchType:weightType from:beginDate toDate:endDate completed:completed];
 }
 
 /*======================================================
@@ -267,21 +279,47 @@
 - (void)fetchFatPercentsFromDate:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed {
     
     HKQuantityType *fatType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBodyFatPercentage];
+    [self fetchType:fatType from:beginDate toDate:endDate completed:completed];
+}
+
+- (void)fetchBmisFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed {
     
-    NSPredicate *fatPredicated = [self predicateFromDate:beginDate toDate:endDate];
+    HKQuantityType *bmiType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBodyMassIndex];
+    [self fetchType:bmiType from:beginDate toDate:endDate completed:completed];
+}
+
+- (void)deleteLifesenseWeightFromDate:(NSDate *)beginDate toDate:(NSDate *)endDate {
     
-    NSSortDescriptor *descriptor = [NSSortDescriptor sortDescriptorWithKey:HKSampleSortIdentifierStartDate ascending:YES];
+    [self fetchWeightsFrom:beginDate toDate:endDate completed:^(NSArray *samples, NSError *error) {
+        if (!error) {
+            if (samples.count >0) {
+                [self.healthStore deleteObject:samples[0] withCompletion:^(BOOL success, NSError *error) {
+                    
+                }];
+            }
+        }
+    }];
     
-    [self fetchSamples:fatType predicate:fatPredicated limited:HKObjectQueryNoLimit sortedDescriptors:@[descriptor] completion:^(NSArray *samples, NSError *error) {
-        if (error) {
-            completed(nil,error);
-        }else {
-            completed(samples,nil);
+    [self fetchFatPercentsFromDate:beginDate toDate:endDate completed:^(NSArray *samples, NSError *error) {
+        if (!error) {
+            if (samples.count >0) {
+                [self.healthStore deleteObject:samples[0] withCompletion:^(BOOL success, NSError *error) {
+                    
+                }];
+            }
+        }
+    }];
+    
+    [self fetchBmisFrom:beginDate toDate:endDate completed:^(NSArray *samples, NSError *error) {
+        if (!error) {
+            if (samples.count >0) {
+                [self.healthStore deleteObject:samples[0] withCompletion:^(BOOL success, NSError *error) {
+                    
+                }];
+            }
         }
     }];
 }
-
-
 
 #pragma mark --Pressure
 
@@ -355,13 +393,55 @@
     }];
 }
 
+- (void)fetchDiaPressureFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed {
+    HKQuantityType *diaPressureType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBloodPressureDiastolic];
+    [self fetchType:diaPressureType from:beginDate toDate:endDate completed:completed];
+}
+
+- (void)fetchSysPressureFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed {
+    HKQuantityType *sysPressureType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBloodPressureSystolic];
+    [self fetchType:sysPressureType from:beginDate toDate:endDate completed:completed];
+}
+
+- (void)fetchHeartRateFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed {
+    HKQuantityType *ratePressureType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierHeartRate];
+    [self fetchType:ratePressureType from:beginDate toDate:endDate completed:completed];
+}
+
+- (void)deleteLifesensePressureFromDate:(NSDate *)beginDate toDate:(NSDate *)endDate {
+    
+    [self fetchDiaPressureFrom:beginDate toDate:endDate completed:^(NSArray *samples, NSError *error) {
+        if (samples.count >0) {
+            [self.healthStore deleteObject:samples[0] withCompletion:^(BOOL success, NSError *error) {
+                
+            }];
+        }
+    }];
+    
+    [self fetchSysPressureFrom:beginDate toDate:endDate completed:^(NSArray *samples, NSError *error) {
+        if (samples.count >0) {
+            [self.healthStore deleteObject:samples[0] withCompletion:^(BOOL success, NSError *error) {
+                
+            }];
+        }
+    }];
+    
+    [self fetchHeartRateFrom:beginDate toDate:endDate completed:^(NSArray *samples, NSError *error) {
+        if (samples.count >0) {
+            [self.healthStore deleteObject:samples[0] withCompletion:^(BOOL success, NSError *error) {
+                
+            }];
+        }
+    }];
+}
+
 #pragma mark --Height
 
 #pragma mark --Activity
 
 - (void)saveLifesenseActivity:(NSDictionary *)activityDic {
     /*
-     pressureDic ->@{@"step":step, @"distance":distance(m),@"unit":0,@"calorie":calorie,@"date",date};
+     pressureDic ->@{@"step":step, @"distance":distance(km),@"unit":0,@"calorie":calorie,@"date",date};
      */
     double steps = [activityDic[@"step"] doubleValue];
     double distance = [activityDic[@"distance"] doubleValue];
@@ -378,10 +458,80 @@
     }];
 }
 
+- (void)fetchStepsFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed {
+    
+    HKQuantityType *stepType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierStepCount];
+    [self fetchType:stepType from:beginDate toDate:endDate completed:completed];
+}
+
+- (void)fetchDistancesFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed {
+    
+    HKQuantityType *distanceType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierDistanceWalkingRunning];
+    [self fetchType:distanceType from:beginDate toDate:endDate completed:completed];
+
+}
+
+- (void)fetchCalorieFrom:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed {
+    
+    HKQuantityType *stepType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierActiveEnergyBurned];
+    [self fetchType:stepType from:beginDate toDate:endDate completed:completed];
+
+}
+
+- (void)deletedLifesenseActivityFromDate:(NSDate *)beginDate toDate:(NSDate *)endDate {
+    
+    [self fetchStepsFrom:beginDate toDate:endDate completed:^(NSArray *samples, NSError *error) {
+        if (samples.count >0) {
+            [self.healthStore deleteObject:samples[0] withCompletion:^(BOOL success, NSError *error) {
+                
+            }];
+        }
+    }];
+    
+    [self fetchDistancesFrom:beginDate toDate:endDate completed:^(NSArray *samples, NSError *error) {
+        if (samples.count >0) {
+            [self.healthStore deleteObject:samples[0] withCompletion:^(BOOL success, NSError *error) {
+                
+            }];
+        }
+    }];
+    
+    [self fetchCalorieFrom:beginDate toDate:endDate completed:^(NSArray *samples, NSError *error) {
+        if (samples.count >0) {
+            [self.healthStore deleteObject:samples[0] withCompletion:^(BOOL success, NSError *error) {
+                
+            }];
+        }
+    }];
+    
+}
+
+- (void)fetchType:(HKQuantityType *)type from:(NSDate *)beginDate toDate:(NSDate *)endDate completed:(void(^)(NSArray *samples,NSError *error))completed {
+    
+    NSPredicate *stepPredicated = [self predicateFromDate:beginDate toDate:endDate];
+    
+    NSSortDescriptor *descriptor = [NSSortDescriptor sortDescriptorWithKey:HKSampleSortIdentifierStartDate ascending:YES];
+    
+    [self fetchSamples:type predicate:stepPredicated limited:HKObjectQueryNoLimit sortedDescriptors:@[descriptor] completion:^(NSArray *samples, NSError *error) {
+        if (error) {
+            completed(nil,error);
+        }else {
+            completed(samples,nil);
+        }
+    }];
+
+}
+
 #pragma mark --Authorize
 
 - (void)getReadAndWriteAuthorizeWithCompleted:(JRBooleanResultBlock)completed {
     [self.healthStore requestAuthorizationToShareTypes:[self dataTypesToReadAndWrite] readTypes:[self dataTypesToReadAndWrite] completion:^(BOOL success, NSError *error) {
+        completed(success,error);
+    }];
+}
+
+- (void)getReadAndWriteAuthorize:(NSArray *)authorizeTypes withCompleted:(JRBooleanResultBlock)completed {
+    [self.healthStore requestAuthorizationToShareTypes:[self dataTypesToReadAndWrite:authorizeTypes] readTypes:[self dataTypesToReadAndWrite:authorizeTypes] completion:^(BOOL success, NSError *error) {
         completed(success,error);
     }];
 }
@@ -397,12 +547,47 @@
     HKQuantityType *sysPressureType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBloodPressureSystolic];
     HKQuantityType *diaPressureType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBloodPressureDiastolic];
     HKQuantityType *heartRatePressureType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierHeartRate];
-
+    
     HKQuantityType *stepsType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierStepCount];
     HKQuantityType *distanceType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierDistanceWalkingRunning];
     HKQuantityType *activeEnergyBurnType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierActiveEnergyBurned];
-
+    
     return [NSSet setWithObjects:heightType, weightType, fatPercentType, bmiType, sysPressureType, diaPressureType, heartRatePressureType, stepsType, distanceType, activeEnergyBurnType,nil];
+
+}
+
+- (NSSet *)dataTypesToReadAndWrite:(NSArray *)authorizeTypes {
+    
+    NSMutableSet *authorizeSet = [NSMutableSet set];
+    
+    for (NSNumber *type in authorizeTypes) {
+        switch ([type integerValue]) {
+            case JRAuthorize_Type_Weight:{
+                HKQuantityType *weightType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBodyMass];
+                HKQuantityType *fatPercentType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBodyFatPercentage];
+                HKQuantityType *bmiType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBodyMassIndex];
+                [authorizeSet addObjectsFromArray:@[weightType,fatPercentType,bmiType]];
+            }
+                break;
+            case JRAuthorize_Type_Pressure:{
+                HKQuantityType *sysPressureType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBloodPressureSystolic];
+                HKQuantityType *diaPressureType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBloodPressureDiastolic];
+                HKQuantityType *heartRatePressureType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierHeartRate];
+                [authorizeSet addObjectsFromArray:@[sysPressureType,diaPressureType,heartRatePressureType]];
+            }
+                break;
+            case JRAuthorize_Type_Activity:{
+                HKQuantityType *stepsType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierStepCount];
+                HKQuantityType *distanceType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierDistanceWalkingRunning];
+                HKQuantityType *activeEnergyBurnType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierActiveEnergyBurned];
+                [authorizeSet addObjectsFromArray:@[stepsType,distanceType,activeEnergyBurnType]];
+            }
+                break;
+            default:
+                break;
+        }
+    }
+    return authorizeSet;
 }
 
 
